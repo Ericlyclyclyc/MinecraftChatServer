@@ -17,6 +17,11 @@ import java.util.List;
 public class ChatMessage {
 
     /**
+     * 消息唯一ID（用于追踪和去重）
+     */
+    private String messageId;
+
+    /**
      * 包类型：MESSAGE(消息) 或 OPERATION(操作)
      */
     private String type;
