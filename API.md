@@ -2,6 +2,8 @@
 
 ## 架构说明
 
+### 单级架构（基础模式）
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    一级消息交换机 (本服务器)                    │
@@ -24,19 +26,59 @@
       玩家A,B        玩家C,D         玩家E,F         玩家G,H
 ```
 
+### 多级架构（多路由器互联模式）
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         多路由器互联网络                                   │
+│                                                                         │
+│   ┌─────────────────┐         WebSocket          ┌─────────────────┐   │
+│   │   路由器 A      │◄──────────────────────────►│   路由器 B      │   │
+│   │  (本服务器)     │    路由表交换/消息转发       │  (远程服务器)    │   │
+│   │                 │                            │                 │   │
+│   │  ┌───────────┐  │                            │  ┌───────────┐  │   │
+│   │  │ 路由表服务 │  │                            │  │ 路由表服务 │  │   │
+│   │  │ - 最短路径 │  │                            │  │ - 最短路径 │  │   │
+│   │  │ - 环路避免 │  │                            │  │ - 环路避免 │  │   │
+│   │  └───────────┘  │                            │  └───────────┘  │   │
+│   └───────┬─────────┘                            └────────┬────────┘   │
+│           │                                               │            │
+│    WebSocket│                                        WebSocket         │
+│           │                                               │            │
+│   ┌───────┴───────┐                            ┌────────┴────────┐   │
+│   │  本地服务器    │                            │   远程服务器     │   │
+│   │  - 生存服1    │                            │   - 生存服3     │   │
+│   │  - 创造服     │                            │   - 小游戏服    │   │
+│   └───────────────┘                            └─────────────────┘   │
+│                                                                         │
+│   路由协议: Bellman-Ford + TTL环路避免                                    │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
 **职责划分：**
 - **一级交换机**：维护玩家-服务器映射，精准路由消息，不管理业务逻辑
 - **二级服务器**：管理玩家状态、处理业务逻辑、转发消息给玩家
+- **路由器互联**：多服务器集群间路由表交换、消息跨集群转发、环路避免
 
 ---
 
 ## 连接信息
+
+### Minecraft 服务器连接
 
 | 项目 | 值 |
 |------|-----|
 | WebSocket URL | `ws://host:8080/ws/minecraft-chat` |
 | 连接参数 | `serverName` (必填) - 服务器唯一名称 |
 | 示例 | `ws://localhost:8080/ws/minecraft-chat?serverName=生存服1` |
+
+### 路由器互联连接
+
+| 项目 | 值 |
+|------|-----|
+| WebSocket URL | `ws://host:8080/ws/router` |
+| 用途 | 路由器之间的互联，交换路由表和转发消息 |
+| 协议 | 见下方「路由器互联协议」章节 |
 
 ---
 
@@ -320,7 +362,7 @@
 
 ## 路由规则
 
-### 消息路由
+### 消息路由（单级架构）
 
 | 消息类型 | 路由行为 | 同服务器处理 |
 |----------|----------|--------------|
@@ -330,6 +372,29 @@
 | `MULTICAST_PLAYER` | 查找每个玩家所在服务器，按服务器分组后发送 | 跳过源服务器 |
 | `MULTICAST_GROUP` | 查找群组内所有成员所在服务器，按服务器分组后发送 | 跳过源服务器 |
 | `BROADCAST` | 发送到所有**其他**服务器 | 排除源服务器 |
+
+### 消息路由（多级架构 - 跨路由器）
+
+当目标服务器不在本地时，通过路由器互联转发：
+
+| 场景 | 路由行为 |
+|------|----------|
+| 目标在本地 | 直接发送给本地服务器 |
+| 目标在直连路由器 | 通过最短路径路由器转发 |
+| 目标在多跳外 | 逐跳转发，TTL递减 |
+| 环路检测 | TTL=0 或已访问过本路由器时丢弃 |
+
+**跨路由器转发示例：**
+
+```
+玩家 Steve (生存服1) → 玩家 Alex (生存服3)
+
+生存服1 ──► 路由器 A ──► 路由器 B ──► 生存服3
+              │
+         查找路由表：生存服3 经由 router-b
+         封装 FORWARD_MESSAGE
+         TTL=15 → TTL=14
+```
 
 ### 操作处理
 
@@ -490,6 +555,199 @@
   "isMember": true
 }
 ```
+
+---
+
+## 路由器互联协议
+
+### 连接流程
+
+```
+┌─────────────┐                    ┌─────────────┐
+│  路由器 A   │                    │  路由器 B   │
+└──────┬──────┘                    └──────┬──────┘
+       │                                   │
+       │─── 1. WebSocket 连接建立 ─────────►│
+       │                                   │
+       │─── 2. CONNECT_REQUEST ───────────►│
+       │    {                              │
+       │      "type": "CONNECT_REQUEST",    │
+       │      "sourceRouterId": "router-a", │
+       │      "sourceRouterName": "Router A"│
+       │    }                              │
+       │                                   │
+       │◄── 3. CONNECT_RESPONSE ───────────│
+       │    {                              │
+       │      "type": "CONNECT_RESPONSE",   │
+       │      "sourceRouterId": "router-b", │
+       │      "sourceRouterName": "Router B"│
+       │    }                              │
+       │                                   │
+       │◄──►4. 定期 HEARTBEAT 交换 ◄───────►│
+       │                                   │
+       │◄──►5. 定期 ROUTE_ADVERTISEMENT ───►│
+       │                                   │
+```
+
+### 消息类型
+
+| 类型 | 说明 | 方向 |
+|------|------|------|
+| `CONNECT_REQUEST` | 连接请求 | A → B |
+| `CONNECT_RESPONSE` | 连接响应 | B → A |
+| `HEARTBEAT` | 心跳检测 | 双向 |
+| `HEARTBEAT_RESPONSE` | 心跳响应 | 双向 |
+| `ROUTE_ADVERTISEMENT` | 路由表通告 | 双向 |
+| `FORWARD_MESSAGE` | 消息转发 | 双向 |
+| `BROADCAST_MESSAGE` | 广播消息 | 双向 |
+
+### 消息格式
+
+#### 1. 连接请求
+
+```json
+{
+  "type": "CONNECT_REQUEST",
+  "sourceRouterId": "router-a-uuid",
+  "sourceRouterName": "Asia-Shanghai-Router",
+  "timestamp": 1712390400000
+}
+```
+
+#### 2. 心跳
+
+```json
+{
+  "type": "HEARTBEAT",
+  "sourceRouterId": "router-a-uuid",
+  "sourceRouterName": "Asia-Shanghai-Router",
+  "heartbeatSeq": 1712390400000,
+  "timestamp": 1712390400000
+}
+```
+
+#### 3. 路由表通告
+
+```json
+{
+  "type": "ROUTE_ADVERTISEMENT",
+  "sourceRouterId": "router-a-uuid",
+  "sourceRouterName": "Asia-Shanghai-Router",
+  "routes": {
+    "生存服1": 1,
+    "创造服": 1,
+    "生存服3": 2,
+    "小游戏服": 3
+  },
+  "timestamp": 1712390400000
+}
+```
+
+**路由表说明：**
+- Key: 目标服务器名称
+- Value: 到达该服务器的跳数（hop count）
+- 本地服务器跳数为 1
+- 通过其他路由器可达的服务器跳数递增
+
+#### 4. 消息转发
+
+```json
+{
+  "type": "FORWARD_MESSAGE",
+  "sourceRouterId": "router-a-uuid",
+  "sourceRouterName": "Asia-Shanghai-Router",
+  "messageId": "msg-uuid-123",
+  "chatMessage": {
+    "type": "MESSAGE",
+    "msgType": "UNICAST_PLAYER",
+    "senderType": "PLAYER",
+    "sourceServer": "生存服1",
+    "sender": "Steve",
+    "targetPlayer": "Alex",
+    "content": "你好！"
+  },
+  "sourceServer": "生存服1",
+  "targetServer": "生存服3",
+  "visitedRouters": ["router-a-uuid"],
+  "ttl": 14,
+  "timestamp": 1712390400000
+}
+```
+
+**字段说明：**
+- `messageId`: 消息唯一ID，用于去重和追踪
+- `visitedRouters`: 已访问的路由器ID列表（环路检测）
+- `ttl`: 生存时间，每经过一跳减1，为0时丢弃
+
+#### 5. 广播消息
+
+```json
+{
+  "type": "BROADCAST_MESSAGE",
+  "sourceRouterId": "router-a-uuid",
+  "sourceRouterName": "Asia-Shanghai-Router",
+  "messageId": "msg-uuid-456",
+  "chatMessage": {
+    "type": "MESSAGE",
+    "msgType": "BROADCAST",
+    "senderType": "PLAYER",
+    "sourceServer": "生存服1",
+    "sender": "Steve",
+    "content": "有人一起挖矿吗？"
+  },
+  "sourceServer": "生存服1",
+  "visitedRouters": ["router-a-uuid"],
+  "ttl": 14,
+  "timestamp": 1712390400000
+}
+```
+
+### 路由算法
+
+#### 最短路径计算
+
+使用 **Bellman-Ford** 算法变种：
+
+```
+成本 = 链路延迟 + 跳数 × 10
+
+例如：
+- 直接连接：链路延迟 5ms + 1跳 × 10 = 15
+- 经由1个路由器：链路延迟 5ms + 2跳 × 10 = 25
+- 经由2个路由器：链路延迟 5ms + 3跳 × 10 = 35
+```
+
+#### 环路避免机制
+
+1. **TTL 递减**：最大15跳，为0时丢弃消息
+2. **访问列表**：记录已访问的路由器ID，重复访问时丢弃
+3. **消息ID去重**：同一消息ID不重复处理
+
+### 路由表示例
+
+假设网络拓扑：
+
+```
+路由器 A ──(5ms)── 路由器 B ──(10ms)── 路由器 C
+   │                    │
+ 生存服1              生存服3
+ 创造服               小游戏服
+```
+
+**路由器 A 的路由表：**
+
+| 目标服务器 | 下一跳 | 总成本 | 路径 |
+|-----------|--------|--------|------|
+| 生存服1 | local | 0 | 直连 |
+| 创造服 | local | 0 | 直连 |
+| 生存服3 | router-b | 25 | A → B |
+| 小游戏服 | router-b | 35 | A → B → C |
+
+### 心跳机制
+
+- **间隔**：10秒
+- **超时**：30秒未收到心跳视为断开
+- **链路成本**：根据心跳响应时间动态计算
 
 ---
 
