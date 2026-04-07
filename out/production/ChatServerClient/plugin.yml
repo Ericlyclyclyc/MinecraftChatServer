@@ -1,0 +1,11 @@
+name: ChatServerClient
+description: $description
+prefix: SkinLoader
+version: '$version'
+
+main: org.lyc122.dev.mc.chatServerClient.ChatServerClient
+paperPluginLoader: org.lyc122.dev.mc.chatServerClient.ChatServerClientLoader
+api-version: '1.21.8'
+load: STARTUP
+
+authors: [lyc122]

@@ -1,0 +1,10 @@
+name: ChatServerClient
+description: A Lightweight Chat Server Client
+prefix: ChatBridgeClient
+version: '0.1-client'
+
+main: org.lyc122.dev.mc.chatServerClient.ChatServerClient
+api-version: '1.21.8'
+load: STARTUP
+
+authors: [lyc122]
