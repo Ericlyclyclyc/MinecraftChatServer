@@ -18,6 +18,7 @@
   </properties>
 
   <build>
+    <finalName>${project.name}-${project.version}</finalName>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -37,6 +38,32 @@
             <goals>
               <goal>shade</goal>
             </goals>
+            <configuration>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <minimizeJar>false</minimizeJar>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+              <relocations>
+                <!-- 重命名依赖包，避免与其他插件冲突 -->
+                <relocation>
+                  <pattern>org.java_websocket</pattern>
+                  <shadedPattern>org.lyc122.dev.mc.chatServerClient.libs.org.java_websocket</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>com.fasterxml.jackson</pattern>
+                  <shadedPattern>org.lyc122.dev.mc.chatServerClient.libs.com.fasterxml.jackson</shadedPattern>
+                </relocation>
+              </relocations>
+
+            </configuration>
           </execution>
         </executions>
       </plugin>
@@ -62,6 +89,18 @@
       <artifactId>paper-api</artifactId>
       <version>${paper.api.version}</version>
       <scope>provided</scope>
+    </dependency>
+    <!-- WebSocket Client -->
+    <dependency>
+      <groupId>org.java-websocket</groupId>
+      <artifactId>Java-WebSocket</artifactId>
+      <version>1.5.6</version>
+    </dependency>
+    <!-- JSON Processing -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.17.2</version>
     </dependency>
   </dependencies>
 </project>

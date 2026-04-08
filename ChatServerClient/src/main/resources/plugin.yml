@@ -8,3 +8,23 @@ api-version: '1.21.8'
 load: STARTUP
 
 authors: [lyc122]
+
+commands:
+  chat:
+    description: 切换聊天模式
+    usage: /chat <local|broadcast|unicast|multicast|group> [目标]
+    permission: chatserverclient.chat
+    permission-message: §c你没有权限使用此命令
+  chatserver:
+    description: ChatServer 管理命令
+    usage: /chatserver <reconnect|status>
+    permission: chatserverclient.admin
+    permission-message: §c你没有权限使用此命令
+
+permissions:
+  chatserverclient.chat:
+    description: 允许使用聊天模式切换命令
+    default: true
+  chatserverclient.admin:
+    description: 允许使用管理命令
+    default: op

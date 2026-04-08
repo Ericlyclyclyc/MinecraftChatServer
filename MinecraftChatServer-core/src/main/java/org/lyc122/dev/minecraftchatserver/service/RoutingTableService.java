@@ -1,6 +1,7 @@
 package org.lyc122.dev.minecraftchatserver.service;
 
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.lyc122.dev.minecraftchatserver.model.RouterNode;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class RoutingTableService {
     
     // 本路由器 ID
@@ -43,7 +45,10 @@ public class RoutingTableService {
     private final Map<String, Set<String>> relayTracker = new ConcurrentHashMap<>();
     
     // 广播消息 TTL（防止无限传播）
-    private static final int MAX_TTL = 15;
+    private static final int MAX_TTL = 32;
+    
+    // 动态 TTL 计算器（自动注入）
+    private final DynamicTtlCalculator dynamicTtlCalculator;
     
     // 心跳超时（毫秒）
     private static final long HEARTBEAT_TIMEOUT = 30000;
@@ -387,7 +392,77 @@ public class RoutingTableService {
         stats.put("activeRoutes", routingTable.entrySet().stream()
                 .filter(e -> !"local".equals(e.getValue()))
                 .count());
+        // 添加动态 TTL 统计
+        if (dynamicTtlCalculator != null) {
+            stats.put("dynamicTtl", dynamicTtlCalculator.getStats());
+        }
         return stats;
+    }
+    
+    /**
+     * 获取动态计算的 TTL 值
+     */
+    public int getDynamicTtl() {
+        if (dynamicTtlCalculator == null) {
+            return MAX_TTL;
+        }
+        return dynamicTtlCalculator.calculateDynamicTtl(
+                routingTable, 
+                routeCosts, 
+                connectedRouters.size(), 
+                localServers.size()
+        );
+    }
+    
+    /**
+     * 为特定目标获取动态 TTL
+     */
+    public int getDynamicTtlForTarget(String targetServer) {
+        if (dynamicTtlCalculator == null) {
+            return MAX_TTL;
+        }
+        return dynamicTtlCalculator.calculateTtlForTarget(
+                targetServer, 
+                routingTable, 
+                routeCosts
+        );
+    }
+    
+    /**
+     * 获取当前网络直径（最长最短路径）
+     */
+    public int getNetworkDiameter() {
+        int maxHops = 0;
+        
+        for (Map.Entry<String, Long> entry : routeCosts.entrySet()) {
+            Long cost = entry.getValue();
+            if (cost != null && cost > 0) {
+                // 假设每跳基准成本为 10
+                int estimatedHops = (int) Math.ceil(cost / 10.0);
+                maxHops = Math.max(maxHops, estimatedHops);
+            }
+        }
+        
+        // 如果没有远程路由，基于连接的路由器数量估算
+        if (maxHops == 0 && !connectedRouters.isEmpty()) {
+            maxHops = connectedRouters.size();
+        }
+        
+        return Math.max(maxHops, 1);
+    }
+    
+    /**
+     * 获取本地服务器数量
+     */
+    public int getLocalServerCount() {
+        return localServers.size();
+    }
+    
+    /**
+     * 获取连接的路由器数量
+     */
+    public int getConnectedRouterCount() {
+        return connectedRouters.size();
     }
     
     /**

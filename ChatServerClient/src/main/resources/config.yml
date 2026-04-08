@@ -1,0 +1,31 @@
+# ChatServerClient 配置文件
+
+# 服务器配置
+server:
+  # 服务器名称（唯一标识，用于ChatServer识别）
+  name: Minecraft-Server
+
+# WebSocket 配置
+websocket:
+  # ChatServer WebSocket 地址
+  url: ws://localhost:8080/ws/minecraft-chat
+  
+  # 自动重连
+  auto-reconnect: true
+  
+  # 重连间隔（秒）
+  reconnect-interval: 10
+
+# 聊天配置
+chat:
+  # 默认聊天模式: BROADCAST, LOCAL, UNICAST_PLAYER, MULTICAST_GROUP
+  default-mode: BROADCAST
+  
+  # 本地聊天范围（方块）
+  local-radius: 100
+  
+  # 是否显示服务器前缀
+  show-server-prefix: true
+  
+  # 服务器前缀格式
+  server-prefix-format: "&7[%server%] "
