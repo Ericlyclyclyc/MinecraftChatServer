@@ -6,7 +6,7 @@
   <parent>
     <groupId>org.lyc122.dev</groupId>
     <artifactId>MinecraftChatServer</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>1.0-beta</version>
   </parent>
 
   <artifactId>ChatServerClient</artifactId>
@@ -14,7 +14,7 @@
   <description>Minecraft Paper Plugin - Chat Server Client</description>
 
   <properties>
-    <paper.api.version>1.21.8-R0.1-SNAPSHOT</paper.api.version>
+    <paper.api.version>1.21.4-R0.1-SNAPSHOT</paper.api.version>
   </properties>
 
   <build>
@@ -77,16 +77,27 @@
   </build>
 
   <repositories>
-      <repository>
-        <id>papermc-repo</id>
-        <url>https://repo.papermc.io/repository/maven-public/</url>
-      </repository>
+    <repository>
+      <id>papermc-repo</id>
+      <url>https://repo.papermc.io/repository/maven-public/</url>
+    </repository>
+    <repository>
+      <id>jitpack.io</id>
+      <url>https://jitpack.io</url>
+    </repository>
   </repositories>
 
   <dependencies>
     <dependency>
       <groupId>io.papermc.paper</groupId>
       <artifactId>paper-api</artifactId>
+      <version>${paper.api.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- Folia API - 用于编译时支持，运行时由服务器提供 -->
+    <dependency>
+      <groupId>dev.folia</groupId>
+      <artifactId>folia-api</artifactId>
       <version>${paper.api.version}</version>
       <scope>provided</scope>
     </dependency>

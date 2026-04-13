@@ -10,7 +10,10 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.lyc122.dev.mc.chatServerClient.ChatServerClient;
 import org.lyc122.dev.mc.chatServerClient.chat.ChatMethodType;
+import org.lyc122.dev.mc.chatServerClient.scheduler.SchedulerAdapter;
 import org.lyc122.dev.mc.chatServerClient.websocket.WebSocketManager;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * 聊天监听器
@@ -20,10 +23,12 @@ public class ChatListener implements Listener {
 
     private final ChatServerClient plugin;
     private final WebSocketManager webSocketManager;
+    private final SchedulerAdapter scheduler;
 
-    public ChatListener(ChatServerClient plugin, WebSocketManager webSocketManager) {
+    public ChatListener(ChatServerClient plugin, WebSocketManager webSocketManager, SchedulerAdapter scheduler) {
         this.plugin = plugin;
         this.webSocketManager = webSocketManager;
+        this.scheduler = scheduler;
     }
 
     /**
@@ -47,19 +52,47 @@ public class ChatListener implements Listener {
             case BROADCAST -> {
                 event.setCancelled(true);
                 webSocketManager.sendChatMessage(player.getName(), message, "BROADCAST", null);
-                player.sendMessage("§7[广播] §f你 §7» §f" + message);
+
+                // 构建广播消息（显示服务器名称）
+                String serverName = plugin.getConfig().getString("server.name", "Server");
+                String broadcastMessage = "§a[" + serverName + "] §f" + player.getName() + " §7» §f" + message;
+
+                // 发送给本地服务器的所有玩家（包括自己）
+                for (Player p : plugin.getServer().getOnlinePlayers()) {
+                    p.sendMessage(broadcastMessage);
+                }
+
+                // 输出到服务器控制台
+                plugin.getLogger().info("[广播] " + player.getName() + " » " + message);
             }
             case LOCAL -> {
-                // 本地消息不发送到服务器，也不取消事件
-                // 让 Minecraft 正常处理本地聊天
-                // 但我们需要取消原始事件并手动发送本地消息
+                // 本地消息不发送到 WebSocket，只在本地服务器内广播
                 event.setCancelled(true);
-                String localMessage = "§e[本地] §f" + player.getName() + " §7» §f" + message;
-                for (Player p : player.getWorld().getPlayers()) {
-                    if (p.getLocation().distance(player.getLocation()) <= 100) {
+
+                // 获取服务器名称
+                String serverName = plugin.getConfig().getString("server.name", "Server");
+
+                // 构建本地消息（显示服务器名称，使用黄色区分）
+                String localMessage = "§e[" + serverName + "] §f" + player.getName() + " §7» §f" + message;
+
+                // 获取本地聊天范围配置
+                int localRadius = plugin.getConfig().getInt("chat.local-radius", 100);
+
+                // 如果半径为 -1，则发送到整个服务器（本地服务器广播）
+                if (localRadius == -1) {
+                    for (Player p : plugin.getServer().getOnlinePlayers()) {
                         p.sendMessage(localMessage);
                     }
+                } else {
+                    // 否则按距离发送
+                    for (Player p : player.getWorld().getPlayers()) {
+                        if (p.getLocation().distance(player.getLocation()) <= localRadius) {
+                            p.sendMessage(localMessage);
+                        }
+                    }
                 }
+                // 输出到服务器控制台
+                plugin.getLogger().info("[本地] " + player.getName() + " » " + message);
             }
             case UNICAST_PLAYER -> {
                 String target = plugin.getUnicastTarget(player);
@@ -67,13 +100,26 @@ public class ChatListener implements Listener {
                     event.setCancelled(true);
                     webSocketManager.sendChatMessage(player.getName(), message, "UNICAST_PLAYER", target);
                     player.sendMessage("§d[私聊] §f你 §7-> §f" + target + " §7» §f" + message);
+                    // 输出到服务器控制台
+                    plugin.getLogger().info("[私聊] " + player.getName() + " -> " + target + " » " + message);
                 }
             }
             case MULTICAST_PLAYER -> {
                 // 组播玩家列表
                 event.setCancelled(true);
                 webSocketManager.sendChatMessage(player.getName(), message, "BROADCAST", null);
-                player.sendMessage("§a[组播] §f你 §7» §f" + message);
+
+                // 构建组播消息
+                String serverName = plugin.getConfig().getString("server.name", "Server");
+                String multicastMessage = "§a[" + serverName + "] §f" + player.getName() + " §7» §f" + message;
+
+                // 发送给本地服务器的所有玩家
+                for (Player p : plugin.getServer().getOnlinePlayers()) {
+                    p.sendMessage(multicastMessage);
+                }
+
+                // 输出到服务器控制台
+                plugin.getLogger().info("[组播] " + player.getName() + " » " + message);
             }
             case MULTICAST_GROUP -> {
                 String group = plugin.getMulticastGroup(player);
@@ -81,13 +127,26 @@ public class ChatListener implements Listener {
                     event.setCancelled(true);
                     webSocketManager.sendChatMessage(player.getName(), message, "MULTICAST_GROUP", group);
                     player.sendMessage("§b[" + group + "] §f你 §7» §f" + message);
+                    // 输出到服务器控制台
+                    plugin.getLogger().info("[" + group + "] " + player.getName() + " » " + message);
                 }
             }
             default -> {
                 // 默认行为：作为广播发送
                 event.setCancelled(true);
                 webSocketManager.sendChatMessage(player.getName(), message, "BROADCAST", null);
-                player.sendMessage("§7[广播] §f你 §7» §f" + message);
+
+                // 构建广播消息
+                String serverName = plugin.getConfig().getString("server.name", "Server");
+                String broadcastMessage = "§a[" + serverName + "] §f" + player.getName() + " §7» §f" + message;
+
+                // 发送给本地服务器的所有玩家
+                for (Player p : plugin.getServer().getOnlinePlayers()) {
+                    p.sendMessage(broadcastMessage);
+                }
+
+                // 输出到服务器控制台
+                plugin.getLogger().info("[广播] " + player.getName() + " » " + message);
             }
         }
     }
@@ -98,14 +157,25 @@ public class ChatListener implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        
-        // 延迟发送，确保 WebSocket 已连接
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+
+        // 获取服务器名称
+        String serverName = plugin.getConfig().getString("server.name", "Server");
+
+        // 广播玩家加入消息给所有在线玩家: [+,绿色]<playerName,绿色> ->（白色)[服务器名，金色]
+        String joinMessage = "§a[+] §a" + player.getName() + " §7-> §6[" + serverName + "]";
+        for (Player p : plugin.getServer().getOnlinePlayers()) {
+            if (p != player) { // 不发送给自己
+                p.sendMessage(joinMessage);
+            }
+        }
+
+        // 延迟发送 WebSocket 消息，确保连接已建立
+        scheduler.runGlobalDelayed(() -> {
             if (webSocketManager.isConnected()) {
                 webSocketManager.sendPlayerJoin(player.getName());
             }
-        }, 40L); // 延迟2秒
-        
+        }, 2, TimeUnit.SECONDS);
+
         // 重置玩家的聊天方法
         plugin.resetPlayerChatMethod(player);
     }
@@ -116,11 +186,20 @@ public class ChatListener implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
-        
+
+        // 获取服务器名称
+        String serverName = plugin.getConfig().getString("server.name", "Server");
+
+        // 广播玩家离开消息给所有在线玩家: [-,红色]<playerName,绿色> ->（白色)[服务器名，金色]
+        String quitMessage = "§c[-] §a" + player.getName() + " §7-> §6[" + serverName + "]";
+        for (Player p : plugin.getServer().getOnlinePlayers()) {
+            p.sendMessage(quitMessage);
+        }
+
         if (webSocketManager.isConnected()) {
             webSocketManager.sendPlayerLeave(player.getName());
         }
-        
+
         // 清理玩家的聊天方法
         plugin.removePlayerChatMethod(player);
     }

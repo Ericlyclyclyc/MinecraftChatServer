@@ -7,10 +7,10 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.lyc122.dev.mc.chatServerClient.ChatServerClient;
+import org.lyc122.dev.mc.chatServerClient.scheduler.SchedulerAdapter;
 import org.lyc122.dev.mc.chatServerClient.websocket.WebSocketManager;
 
-import java.util.List;
-import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 消息处理器
@@ -20,6 +20,7 @@ public class MessageProcessor implements WebSocketManager.MessageHandler {
 
     private final ChatServerClient plugin;
     private final WebSocketManager webSocketManager;
+    private final SchedulerAdapter scheduler;
 
     // 颜色代码映射
     private static final LegacyComponentSerializer LEGACY_SERIALIZER = LegacyComponentSerializer
@@ -28,21 +29,22 @@ public class MessageProcessor implements WebSocketManager.MessageHandler {
             .hexColors()
             .build();
 
-    public MessageProcessor(ChatServerClient plugin, WebSocketManager webSocketManager) {
+    public MessageProcessor(ChatServerClient plugin, WebSocketManager webSocketManager, SchedulerAdapter scheduler) {
         this.plugin = plugin;
         this.webSocketManager = webSocketManager;
+        this.scheduler = scheduler;
     }
 
     @Override
     public void onConnected() {
         plugin.getLogger().info("消息处理器已就绪");
-        
+
         // 发送当前在线玩家列表
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        scheduler.runGlobalDelayed(() -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 webSocketManager.sendPlayerJoin(player.getName());
             }
-        }, 20L); // 延迟1秒发送
+        }, 1, TimeUnit.SECONDS);
     }
 
     @Override
@@ -159,10 +161,43 @@ public class MessageProcessor implements WebSocketManager.MessageHandler {
      */
     private void handleOperation(JsonNode message) {
         String opType = message.has("opType") ? message.get("opType").asText() : "UNKNOWN";
-        
+
         switch (opType) {
-            case "SERVER_CONNECT" -> plugin.getLogger().info("服务器连接成功");
-            case "SERVER_DISCONNECT" -> plugin.getLogger().warning("服务器断开连接通知");
+            case "SERVER_CONNECT" -> {
+                // 使用消息中的 sourceServer 字段（服务端使用此字段存储服务器名）
+                String serverName = message.has("sourceServer") ? message.get("sourceServer").asText()
+                    : plugin.getConfig().getString("server.name", "Unknown");
+                plugin.getLogger().info("服务器 [" + serverName + "] 连接成功");
+            }
+            case "SERVER_DISCONNECT" -> {
+                // 使用消息中的 sourceServer 字段
+                String disconnectedServer = message.has("sourceServer") ? message.get("sourceServer").asText()
+                    : plugin.getConfig().getString("server.name", "Unknown");
+                String reason = message.has("reason") ? message.get("reason").asText() : "未知原因";
+                plugin.getLogger().warning("服务器 [" + disconnectedServer + "] 断开连接，原因: " + reason);
+
+                // 广播给所有在线玩家
+                String disconnectMsg = "§c[系统] §f服务器 [" + disconnectedServer + "] 已断开连接";
+                scheduler.runGlobal(() -> {
+                    for (Player player : Bukkit.getOnlinePlayers()) {
+                        player.sendMessage(disconnectMsg);
+                    }
+                });
+            }
+            case "PLAYER_JOIN" -> {
+                String joinedPlayer = message.has("sender") ? message.get("sender").asText() : "Unknown";
+                // 使用消息中的 sourceServer 字段
+                String fromServer = message.has("sourceServer") ? message.get("sourceServer").asText()
+                    : plugin.getConfig().getString("server.name", "Unknown");
+                plugin.getLogger().info("玩家 " + joinedPlayer + " 加入了服务器 [" + fromServer + "]");
+            }
+            case "PLAYER_LEAVE" -> {
+                String leftPlayer = message.has("sender") ? message.get("sender").asText() : "Unknown";
+                // 使用消息中的 sourceServer 字段
+                String fromServer = message.has("sourceServer") ? message.get("sourceServer").asText()
+                    : plugin.getConfig().getString("server.name", "Unknown");
+                plugin.getLogger().info("玩家 " + leftPlayer + " 离开了服务器 [" + fromServer + "]");
+            }
             default -> plugin.getLogger().fine("操作类型: " + opType);
         }
     }
@@ -194,14 +229,25 @@ public class MessageProcessor implements WebSocketManager.MessageHandler {
     }
 
     private Component formatBroadcastMessage(String sender, String content, String sourceServer, String senderType) {
+        // 从配置读取是否显示服务器前缀
+        boolean showServerPrefix = plugin.getConfig().getBoolean("chat.show-server-prefix", true);
+        String prefixFormat = plugin.getConfig().getString("chat.server-prefix-format", "&7[%server%] ");
+
         Component prefix = switch (senderType) {
             case "SYSTEM" -> Component.text("[系统] ", NamedTextColor.RED);
             case "SERVER" -> Component.text("[服务器] ", NamedTextColor.GOLD);
-            default -> Component.text("[广播] ", NamedTextColor.BLUE);
+            default -> {
+                // 普通玩家广播：显示来源服务器名称（绿色）
+                if (showServerPrefix) {
+                    String formattedPrefix = prefixFormat.replace("%server%", sourceServer);
+                    yield LEGACY_SERIALIZER.deserialize("&a[" + sourceServer + "] ");
+                } else {
+                    yield Component.empty();
+                }
+            }
         };
-        
+
         return prefix
-                .append(Component.text("[" + sourceServer + "] ", NamedTextColor.GRAY))
                 .append(Component.text(sender, NamedTextColor.YELLOW))
                 .append(Component.text(" » ", NamedTextColor.WHITE))
                 .append(LEGACY_SERIALIZER.deserialize(content));

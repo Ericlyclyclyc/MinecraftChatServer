@@ -1,11 +1,12 @@
 name: ChatServerClient
-description: A Lightweight Chat Server Client
+description: A Lightweight Chat Server Client with Folia Support
 prefix: ChatBridgeClient
-version: '0.1-client'
+version: @project.version@
 
 main: org.lyc122.dev.mc.chatServerClient.ChatServerClient
-api-version: '1.21.8'
+api-version: '1.21'
 load: STARTUP
+folia-supported: true
 
 authors: [lyc122]
 

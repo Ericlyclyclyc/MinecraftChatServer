@@ -3,15 +3,13 @@ package org.lyc122.dev.mc.chatServerClient.websocket;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.bukkit.Bukkit;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
 import org.lyc122.dev.mc.chatServerClient.ChatServerClient;
+import org.lyc122.dev.mc.chatServerClient.scheduler.SchedulerAdapter;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
@@ -23,23 +21,23 @@ import java.util.logging.Level;
 public class WebSocketManager {
 
     private final ChatServerClient plugin;
+    private final SchedulerAdapter scheduler;
     private final ObjectMapper objectMapper;
-    private final ScheduledExecutorService reconnectExecutor;
     private final AtomicBoolean isConnecting;
-    
+
     private WebSocketClient webSocketClient;
     private String serverUrl;
     private String serverName;
     private boolean autoReconnect;
     private int reconnectInterval;
-    
+
     private volatile boolean connected = false;
     private MessageHandler messageHandler;
 
-    public WebSocketManager(ChatServerClient plugin) {
+    public WebSocketManager(ChatServerClient plugin, SchedulerAdapter scheduler) {
         this.plugin = plugin;
+        this.scheduler = scheduler;
         this.objectMapper = new ObjectMapper();
-        this.reconnectExecutor = Executors.newSingleThreadScheduledExecutor();
         this.isConnecting = new AtomicBoolean(false);
     }
 
@@ -58,7 +56,7 @@ public class WebSocketManager {
      */
     public void connect() {
         if (isConnecting.compareAndSet(false, true)) {
-            Bukkit.getScheduler().runTaskAsynchronously(plugin, this::doConnect);
+            scheduler.runAsync(this::doConnect);
         }
     }
 
@@ -78,9 +76,9 @@ public class WebSocketManager {
                     connected = true;
                     isConnecting.set(false);
                     plugin.getLogger().info("成功连接到 ChatServer!");
-                    
-                    // 在主线程中触发连接成功事件
-                    Bukkit.getScheduler().runTask(plugin, () -> {
+
+                    // 在全局区域触发连接成功事件
+                    scheduler.runGlobal(() -> {
                         if (messageHandler != null) {
                             messageHandler.onConnected();
                         }
@@ -97,16 +95,19 @@ public class WebSocketManager {
                     connected = false;
                     isConnecting.set(false);
                     plugin.getLogger().info("与 ChatServer 断开连接: " + reason + " (code: " + code + ")");
-                    
-                    Bukkit.getScheduler().runTask(plugin, () -> {
-                        if (messageHandler != null) {
-                            messageHandler.onDisconnected(reason);
+
+                    // 检查插件是否仍然启用，避免在关闭时尝试使用调度器
+                    if (plugin.isEnabled()) {
+                        scheduler.runGlobal(() -> {
+                            if (messageHandler != null) {
+                                messageHandler.onDisconnected(reason);
+                            }
+                        });
+
+                        // 自动重连
+                        if (autoReconnect && remote) {
+                            scheduleReconnect();
                         }
-                    });
-                    
-                    // 自动重连
-                    if (autoReconnect && remote) {
-                        scheduleReconnect();
                     }
                 }
 
@@ -132,12 +133,15 @@ public class WebSocketManager {
         try {
             JsonNode jsonNode = objectMapper.readTree(message);
             String type = jsonNode.has("type") ? jsonNode.get("type").asText() : "UNKNOWN";
-            
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                if (messageHandler != null) {
-                    messageHandler.onMessage(type, jsonNode);
-                }
-            });
+
+            // 检查插件是否仍然启用
+            if (plugin.isEnabled()) {
+                scheduler.runGlobal(() -> {
+                    if (messageHandler != null) {
+                        messageHandler.onMessage(type, jsonNode);
+                    }
+                });
+            }
         } catch (Exception e) {
             plugin.getLogger().log(Level.WARNING, "解析消息失败: " + message, e);
         }
@@ -224,7 +228,7 @@ public class WebSocketManager {
     public void disconnect() {
         autoReconnect = false;
         connected = false;
-        
+
         if (webSocketClient != null) {
             try {
                 webSocketClient.close();
@@ -233,8 +237,6 @@ public class WebSocketManager {
             }
             webSocketClient = null;
         }
-        
-        reconnectExecutor.shutdown();
     }
 
     /**
@@ -242,7 +244,7 @@ public class WebSocketManager {
      */
     private void scheduleReconnect() {
         plugin.getLogger().info("将在 " + reconnectInterval + " 秒后尝试重连...");
-        reconnectExecutor.schedule(() -> {
+        scheduler.runAsyncDelayed(() -> {
             if (!connected && autoReconnect) {
                 connect();
             }
