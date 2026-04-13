@@ -45,8 +45,8 @@ public class RouterWebSocketHandler extends TextWebSocketHandler {
     private String localRouterId;
     private String localRouterName;
     
-    // 最大 TTL
-    private static final int MAX_TTL = 15;
+    // 最大 TTL（备用值，实际使用动态 TTL）
+    private static final int MAX_TTL = 32;
     
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
@@ -176,6 +176,13 @@ public class RouterWebSocketHandler extends TextWebSocketHandler {
      * 处理转发消息
      */
     private void handleForwardMessage(WebSocketSession session, RouterMessage msg) {
+        // 如果 TTL 未设置，使用动态 TTL
+        if (msg.getTtl() == null) {
+            int dynamicTtl = routingTableService.getDynamicTtl();
+            msg.setTtl(dynamicTtl);
+            log.debug("消息未设置 TTL，使用动态 TTL: {}", dynamicTtl);
+        }
+        
         // TTL 检查
         if (!msg.decrementTtl()) {
             log.warn("消息 TTL 耗尽，丢弃: {}", msg.getMessageId());
@@ -217,6 +224,13 @@ public class RouterWebSocketHandler extends TextWebSocketHandler {
      * 处理广播消息
      */
     private void handleBroadcastMessage(WebSocketSession session, RouterMessage msg) {
+        // 如果 TTL 未设置，使用动态 TTL
+        if (msg.getTtl() == null) {
+            int dynamicTtl = routingTableService.getDynamicTtl();
+            msg.setTtl(dynamicTtl);
+            log.debug("广播消息未设置 TTL，使用动态 TTL: {}", dynamicTtl);
+        }
+        
         // TTL 检查
         if (!msg.decrementTtl()) {
             log.warn("广播消息 TTL 耗尽，丢弃: {}", msg.getMessageId());
@@ -268,7 +282,20 @@ public class RouterWebSocketHandler extends TextWebSocketHandler {
     private void forwardToNextRouter(String nextRouterId, RouterMessage msg) {
         RouterNode router = routingTableService.getConnectedRouter(nextRouterId);
         if (router != null) {
+            // 确保 TTL 已设置
+            ensureTtlSet(msg);
             forwardToRouter(router, msg);
+        }
+    }
+    
+    /**
+     * 确保消息设置了 TTL
+     */
+    private void ensureTtlSet(RouterMessage msg) {
+        if (msg.getTtl() == null) {
+            int dynamicTtl = routingTableService.getDynamicTtl();
+            msg.setTtl(dynamicTtl);
+            log.debug("转发消息时设置动态 TTL: {}", dynamicTtl);
         }
     }
     
@@ -277,9 +304,11 @@ public class RouterWebSocketHandler extends TextWebSocketHandler {
      */
     private void forwardToRouter(RouterNode router, RouterMessage msg) {
         try {
+            // 确保 TTL 已设置
+            ensureTtlSet(msg);
             String json = objectMapper.writeValueAsString(msg);
             router.sendMessage(json);
-            log.debug("转发消息到路由器: {}", router.getRouterId());
+            log.debug("转发消息到路由器: {} (TTL: {})", router.getRouterId(), msg.getTtl());
         } catch (Exception e) {
             log.error("转发消息到路由器 {} 失败", router.getRouterId(), e);
         }

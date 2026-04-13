@@ -1,0 +1,49 @@
+# ChatServerClient 配置文件
+# 
+# ⚠️ 警告: 请勿手动修改 config-version！
+# 每次插件更新配置文件结构时，此版本号会自动加 1
+# 如果插件检测到配置文件版本低于内置版本，会自动升级配置文件
+# 升级过程会保留您的所有自定义设置，仅添加新配置项
+
+# 配置文件版本（请勿手动修改）
+config-version: 2
+
+# 服务器配置
+server:
+  # 服务器名称（唯一标识，用于ChatServer识别）
+  name: Minecraft-Server
+  
+  # 服务器唯一标识符 (UUID)
+  # ⚠️ 警告: 此项由插件在首次启动时自动生成，用于唯一标识此服务器实例
+  # 修改此值将导致: 
+  #   - 聊天记录、玩家数据等关联信息丢失
+  #   - 其他服务器无法正确识别此服务器
+  #   - 群组 membership 等数据异常
+  # 除非你知道你在做什么，否则不要修改此项！
+  # 设置为 "generate" 可在下次启动时重新生成（不推荐）
+  uuid: generate
+
+# WebSocket 配置
+websocket:
+  # ChatServer WebSocket 地址
+  url: ws://localhost:8080/ws/minecraft-chat
+  
+  # 自动重连
+  auto-reconnect: true
+  
+  # 重连间隔（秒）
+  reconnect-interval: 10
+
+# 聊天配置
+chat:
+  # 默认聊天模式: BROADCAST, LOCAL, UNICAST_PLAYER, MULTICAST_GROUP
+  default-mode: BROADCAST
+  
+  # 本地聊天范围（方块）
+  local-radius: 100
+  
+  # 是否显示服务器前缀
+  show-server-prefix: true
+  
+  # 服务器前缀格式
+  server-prefix-format: "&7[%server%] "

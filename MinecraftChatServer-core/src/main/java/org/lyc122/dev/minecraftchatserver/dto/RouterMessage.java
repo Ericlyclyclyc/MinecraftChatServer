@@ -139,11 +139,11 @@ public class RouterMessage {
     }
     
     /**
-     * 创建消息转发请求
+     * 创建消息转发请求（使用动态 TTL）
      */
     public static RouterMessage forwardMessage(String routerId, String routerName,
             ChatMessage chatMessage, String sourceServer, String targetServer,
-            Set<String> visitedRouters, int ttl) {
+            Set<String> visitedRouters, Integer ttl) {
         return RouterMessage.builder()
                 .type("FORWARD_MESSAGE")
                 .sourceRouterId(routerId)
@@ -159,11 +159,22 @@ public class RouterMessage {
     }
     
     /**
+     * 创建消息转发请求（自动使用默认 TTL）
+     */
+    public static RouterMessage forwardMessage(String routerId, String routerName,
+            ChatMessage chatMessage, String sourceServer, String targetServer,
+            Set<String> visitedRouters) {
+        // TTL 将在发送前由 DynamicTtlCalculator 动态设置
+        return forwardMessage(routerId, routerName, chatMessage, sourceServer, 
+                targetServer, visitedRouters, (Integer) null);
+    }
+    
+    /**
      * 创建广播消息
      */
     public static RouterMessage broadcastMessage(String routerId, String routerName,
             ChatMessage chatMessage, String sourceServer,
-            Set<String> visitedRouters, int ttl, Double radius, Position center) {
+            Set<String> visitedRouters, Integer ttl, Double radius, Position center) {
         return RouterMessage.builder()
                 .type("BROADCAST_MESSAGE")
                 .sourceRouterId(routerId)
@@ -177,6 +188,17 @@ public class RouterMessage {
                 .centerPosition(center)
                 .timestamp(System.currentTimeMillis())
                 .build();
+    }
+    
+    /**
+     * 创建广播消息（自动使用默认 TTL）
+     */
+    public static RouterMessage broadcastMessage(String routerId, String routerName,
+            ChatMessage chatMessage, String sourceServer,
+            Set<String> visitedRouters, Double radius, Position center) {
+        // TTL 将在发送前由 DynamicTtlCalculator 动态设置
+        return broadcastMessage(routerId, routerName, chatMessage, sourceServer, 
+                visitedRouters, (Integer) null, radius, center);
     }
     
     /**
