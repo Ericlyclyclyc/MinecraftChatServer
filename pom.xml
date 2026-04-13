@@ -10,7 +10,7 @@
     </parent>
     <groupId>org.lyc122.dev</groupId>
     <artifactId>MinecraftChatServer</artifactId>
-    <version>1.0-beta</version>
+    <version>1.1-beta</version>
     <name>MinecraftChatServer</name>
     <description>MinecraftChatServer</description>
     <packaging>pom</packaging>

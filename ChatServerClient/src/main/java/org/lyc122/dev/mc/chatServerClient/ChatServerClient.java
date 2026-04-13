@@ -250,7 +250,12 @@ public final class ChatServerClient extends JavaPlugin {
                 String subCmd = args[0].toLowerCase();
                 switch (subCmd) {
                     case "reconnect" -> {
-                        player.sendMessage("§a正在重新连接...");
+                        // 仅在未连接或连接断开时才允许手动重连
+                        if (webSocketManager.isConnected()) {
+                            player.sendMessage("§e已经连接到 ChatServer，无需重连");
+                            return true;
+                        }
+                        player.sendMessage("§a正在尝试重新连接 ChatServer...");
                         webSocketManager.connect();
                     }
                     case "status" -> {
