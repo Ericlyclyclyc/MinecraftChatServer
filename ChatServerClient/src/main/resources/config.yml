@@ -11,7 +11,8 @@ config-version: 2
 # 服务器配置
 server:
   # 服务器名称（唯一标识，用于ChatServer识别）
-  name: Minecraft-Server
+  # 设置为 "generate" 可在下次启动时生成随机名称（格式: server-xxxxxxxx）
+  name: generate
   
   # 服务器唯一标识符 (UUID)
   # ⚠️ 警告: 此项由插件在首次启动时自动生成，用于唯一标识此服务器实例

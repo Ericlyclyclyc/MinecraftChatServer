@@ -44,6 +44,9 @@ public final class ChatServerClient extends JavaPlugin {
         // 检查并升级配置文件
         upgradeConfigIfNeeded();
 
+        // 初始化或获取服务器名称
+        String serverName = initializeServerName();
+
         // 初始化或获取服务器 UUID
         String serverUuid = initializeServerUuid();
 
@@ -55,7 +58,6 @@ public final class ChatServerClient extends JavaPlugin {
 
         // 读取配置
         String serverUrl = getConfig().getString("websocket.url", "ws://localhost:8080/ws/minecraft-chat");
-        String serverName = getConfig().getString("server.name", "Minecraft-Server");
         boolean autoReconnect = getConfig().getBoolean("websocket.auto-reconnect", true);
         int reconnectInterval = getConfig().getInt("websocket.reconnect-interval", 10);
 
@@ -150,6 +152,38 @@ public final class ChatServerClient extends JavaPlugin {
             // case 3 -> { ... }
             default -> getLogger().warning("未知的配置版本: " + targetVersion);
         }
+    }
+
+    /**
+     * 初始化服务器名称
+     * 如果配置中为 "generate" 或为空，则生成随机名称（格式: server-xxxxxxxx）
+     */
+    private String initializeServerName() {
+        String name = getConfig().getString("server.name", "generate");
+
+        if (name == null || name.isBlank() || "generate".equalsIgnoreCase(name)) {
+            // 生成随机服务器名称: server- + 8位随机字符(a-z, A-Z, 0-9)
+            name = generateRandomServerName();
+            getConfig().set("server.name", name);
+            saveConfig();
+            getLogger().info("已生成新的服务器名称: " + name);
+        }
+
+        return name;
+    }
+
+    /**
+     * 生成随机服务器名称
+     * 格式: server- + 8位随机字符(a-z, A-Z, 0-9)
+     */
+    private String generateRandomServerName() {
+        String chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        StringBuilder sb = new StringBuilder("server-");
+        java.util.Random random = new java.util.Random();
+        for (int i = 0; i < 8; i++) {
+            sb.append(chars.charAt(random.nextInt(chars.length())));
+        }
+        return sb.toString();
     }
 
     /**
