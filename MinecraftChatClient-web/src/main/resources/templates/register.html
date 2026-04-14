@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - Minecraft Chat</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-box">
+            <div class="auth-header">
+                <h1>注册账号</h1>
+                <p>创建您的 Minecraft Chat 账号</p>
+            </div>
+            
+            <div id="error-msg" class="alert alert-error" style="display: none;"></div>
+            
+            <form class="auth-form" id="register-form">
+                <div class="form-group">
+                    <label for="username">用户名 *</label>
+                    <input type="text" id="username" name="username" required 
+                           placeholder="3-32个字符" minlength="3" maxlength="32">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">密码 *</label>
+                    <input type="password" id="password" name="password" required 
+                           placeholder="6-64个字符" minlength="6" maxlength="64">
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">邮箱</label>
+                    <input type="email" id="email" name="email" 
+                           placeholder="选填，用于找回密码">
+                </div>
+                
+                <div class="form-group">
+                    <label for="nickname">昵称</label>
+                    <input type="text" id="nickname" name="nickname" 
+                           placeholder="选填，显示名称">
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block">注册</button>
+            </form>
+            
+            <div class="auth-footer">
+                <p>已有账号？ <a href="/login">立即登录</a></p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('register-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const errorMsg = document.getElementById('error-msg');
+            errorMsg.style.display = 'none';
+            
+            const data = {
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value,
+                email: document.getElementById('email').value || null,
+                nickname: document.getElementById('nickname').value || null
+            };
+            
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('注册成功！请登录');
+                    window.location.href = '/login';
+                } else {
+                    errorMsg.textContent = result.message || '注册失败';
+                    errorMsg.style.display = 'block';
+                }
+            } catch (error) {
+                errorMsg.textContent = '网络错误，请重试';
+                errorMsg.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

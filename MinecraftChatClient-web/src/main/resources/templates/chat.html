@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天 - Minecraft Chat</title>
+    <link rel="stylesheet" href="/css/chat.css">
+</head>
+<body>
+    <div class="chat-app">
+        <!-- 侧边栏 -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="user-avatar">
+                    <span id="user-avatar-text">U</span>
+                </div>
+                <div class="user-info">
+                    <span id="username" class="username">加载中...</span>
+                    <span id="connection-status" class="status offline">未连接</span>
+                </div>
+            </div>
+            
+            <div class="sidebar-nav">
+                <div class="nav-item active" data-tab="chat">
+                    <span class="nav-icon">💬</span>
+                    <span>聊天</span>
+                </div>
+                <div class="nav-item" data-tab="settings">
+                    <span class="nav-icon">⚙️</span>
+                    <span>设置</span>
+                </div>
+            </div>
+            
+            <div class="sidebar-footer">
+                <form action="/logout" method="post" style="display: inline;">
+                    <button type="submit" class="btn-logout">退出登录</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- 主聊天区域 -->
+        <div class="main-content">
+            <!-- 聊天标签页 -->
+            <div id="chat-tab" class="tab-content active">
+                <div class="chat-container">
+                    <!-- 消息类型选择 -->
+                    <div class="message-type-bar">
+                        <select id="msg-type" class="msg-type-select">
+                            <option value="BROADCAST">广播消息</option>
+                            <option value="UNICAST_PLAYER">私聊玩家</option>
+                            <option value="MULTICAST_PLAYER">组播玩家</option>
+                            <option value="MULTICAST_GROUP">群组消息</option>
+                        </select>
+                        <input type="text" id="target-input" class="target-input" 
+                               placeholder="目标玩家/群组（广播可不填）" style="display: none;">
+                    </div>
+                    
+                    <!-- 消息列表 -->
+                    <div id="message-list" class="message-list">
+                        <div class="system-message">
+                            <span>欢迎使用 Minecraft Chat！</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 输入区域 -->
+                    <div class="input-area">
+                        <div class="input-toolbar">
+                            <button class="toolbar-btn" title="表情">😊</button>
+                            <button class="toolbar-btn" title="图片">📷</button>
+                            <button class="toolbar-btn" title="文件">📎</button>
+                        </div>
+                        <div class="input-box">
+                            <textarea id="message-input" placeholder="输入消息..." 
+                                      rows="3" maxlength="500"></textarea>
+                        </div>
+                        <div class="input-actions">
+                            <span class="char-count">0/500</span>
+                            <button id="send-btn" class="btn-send" disabled>发送</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 设置标签页 -->
+            <div id="settings-tab" class="tab-content">
+                <div class="settings-container">
+                    <h2>账号设置</h2>
+                    <div class="settings-section">
+                        <h3>修改信息</h3>
+                        <div class="form-group">
+                            <label>昵称</label>
+                            <input type="text" id="setting-nickname" placeholder="新昵称">
+                        </div>
+                        <div class="form-group">
+                            <label>邮箱</label>
+                            <input type="email" id="setting-email" placeholder="新邮箱">
+                        </div>
+                        <button id="save-profile-btn" class="btn btn-primary">保存修改</button>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h3>修改密码</h3>
+                        <div class="form-group">
+                            <label>当前密码</label>
+                            <input type="password" id="current-password" placeholder="当前密码">
+                        </div>
+                        <div class="form-group">
+                            <label>新密码</label>
+                            <input type="password" id="new-password" placeholder="新密码">
+                        </div>
+                        <button id="change-password-btn" class="btn btn-primary">修改密码</button>
+                    </div>
+                    
+                    <div class="settings-section danger-zone">
+                        <h3>危险区域</h3>
+                        <button id="delete-account-btn" class="btn btn-danger">删除账号</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/js/chat.js"></script>
+</body>
+</html>
